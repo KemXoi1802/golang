@@ -1,0 +1,184 @@
+type MsgStatus int
+
+const (
+	Pending MsgStatus = iota
+	Inprogress
+	Done
+)
+
+type ISO8583DataList *list.List
+
+type Server struct {
+	sync.Mutex
+	sync.WaitGroup
+	ServerType      string //it shout be "tcp", "tcp4", "tcp6"...
+	IPAddr          string
+	Port            string
+	Listenner       net.Listener
+	StreamerList    *list.List
+	Iso8583DataList *list.List
+	IsRunning       bool
+	CountStatus     bool
+}
+
+type ISO8583Client struct {
+	sync.Mutex
+	sync.WaitGroup
+	// Server ISO8583Server
+	Client net.Conn
+	// Request  ISO8583Data
+	// Response ISO8583Data
+}
+
+func NewISO8583Client(client net.Conn) *ISO8583Client {
+	return &ISO8583Client{
+		Client: client}
+}
+
+func (c *ISO8583Client) DoProcessClient() {
+	fmt.Println("run as goroutine")
+}
+
+func (s *Server) Run() {
+	if s.IsRunning {
+		return
+	}
+	var err error
+	CStr := s.IPAddr + ":" + s.Port
+
+	fmt.Println("Server start IP: ", s.IPAddr, "and listen Port:", s.Port)
+	s.Listenner, err = net.Listen(s.ServerType, CStr)
+	if err != nil {
+		fmt.Println("Server cannot start. Please check IP and Port")
+		panic(err)
+	}
+	s.IsRunning = true
+	go s.DoAccept()
+}
+
+func (s *Server) DoAccept() {
+	var err error
+	var streamer net.Conn
+	for s.IsRunning {
+		streamer, err = s.Listenner.Accept()
+		if err != nil {
+			fmt.Println("Server cannot accept client")
+			panic(err)
+		}
+
+		s.Lock()
+		fmt.Println("Server has stream connected addr", streamer.RemoteAddr())
+		s.StreamerList.PushBack(streamer)
+		s.Unlock()
+
+		go s.DoProcessStream(streamer)
+	}
+}
+
+func LengthToInt(len []byte) int64 {
+	var res int64
+	// var err error
+	res, _ = strconv.ParseInt(hex.EncodeToString(len), 16, 64)
+	return res
+}
+
+func (s *Server) DoProcessStream(stream net.Conn) {
+	var err error
+	var nums int
+
+	data := make([]byte, 256)
+	for s.IsRunning {
+
+		nums, err = stream.Read(data)
+
+		if len(data) < 10 {
+			continue
+		}
+
+		if LengthToInt(data[:2])+2 < int64(nums) {
+			continue
+		}
+
+		if err == nil {
+			s.Lock()
+			s.CountStatus = true
+			fmt.Println("TPDU: ", hex.EncodeToString(data[2:7]))
+			fmt.Println("MTI: ", hex.EncodeToString(data[7:9]))
+			fmt.Println("BIT MAP: ", hex.EncodeToString(data[9:17]))
+			fmt.Println("DATA ELEMENT: ", hex.EncodeToString(data[17:nums]))
+			s.Iso8583DataList.PushBack(ISO8583Data{Status: Pending, Stream: stream, TPDU: data[2:7], MTI: data[7:9], BM: data[9:17], Data: data[17:nums]})
+			s.Unlock()
+		}
+	}
+}
+
+func (s *Server) Count() {
+	for true {
+		s.Lock()
+		if s.CountStatus {
+			for ele := s.Iso8583DataList.Front(); ele != nil; ele = ele.Next() {
+				fmt.Println("TPDU IN LIST", hex.EncodeToString(ele.Value.(ISO8583Data).TPDU))
+				fmt.Println("MTI IN LIST", hex.EncodeToString(ele.Value.(ISO8583Data).MTI))
+				fmt.Println("BIT MAP IN LIST", hex.EncodeToString(ele.Value.(ISO8583Data).BM))
+				fmt.Println("DATA ELEMENT IN LIST", hex.EncodeToString(ele.Value.(ISO8583Data).Data))
+				s.Iso8583DataList.Remove(ele)
+			}
+			s.CountStatus = false
+		}
+		s.Unlock()
+
+	}
+
+}
+
+//DoReadFromStream to read data from client
+func (s *Server) DoReadFromStream() {
+	var err error
+	var numsbyte int
+	for s.IsRunning {
+		for element := s.StreamerList.Front(); element != nil; element = element.Next() {
+			data := make([]byte, 256)
+			numsbyte, err = element.Value.(net.Conn).Read(data)
+
+			if err == nil { // if no error
+
+				hexbytes := data[:numsbyte]
+
+				write := "0026" + hex.EncodeToString(hexbytes[2:3]) + hex.EncodeToString(hexbytes[5:7]) + hex.EncodeToString(hexbytes[3:5]) + "081020380100028000009200000000011821380909003230303132333938373435"
+
+				writehex, _ := hex.DecodeString(write)
+
+				fmt.Println(hex.Dump(writehex))
+				numsbyte, err = element.Value.(net.Conn).Write(writehex)
+
+				// fmt.Println("err when write data to client", err, numsbyte)
+
+			} else if err == io.EOF {
+				fmt.Println("client disconnected..................................")
+			} else {
+				s.Lock()
+				s.StreamerList.Remove(element) //remove connection from connection list to avoid read error
+				s.Unlock()
+				fmt.Println(err)
+				fmt.Println("client disconnected...")
+				element.Value.(net.Conn).Close()
+
+			}
+			time.Sleep(3000)
+		}
+	}
+
+}
+
+func (s *Server) Stop() {
+	if s.Listenner != nil { //server has running
+		s.Listenner = nil
+	}
+
+	for element := s.StreamerList.Front(); element != nil; element = element.Next() {
+		element.Value.(net.Conn).Close()
+		s.Lock()
+		defer s.Unlock()
+		s.StreamerList.Remove(element)
+	}
+}
