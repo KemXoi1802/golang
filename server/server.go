@@ -1,9 +1,9 @@
 package server
 
 import (
+	"container/list"
 	"golang/iso8583"
 	"golang/utils"
-	"container/list"
 	"net"
 	"os"
 	"sync"
@@ -11,7 +11,6 @@ import (
 
 // Server basic properties for server
 type Server struct {
-	sync.Mutex
 	sync.WaitGroup
 	mServerType  string
 	mIPAddr      string
@@ -48,14 +47,17 @@ func (s *Server) Start() {
 		panic(err)
 	}
 	s.mIsRunning = true
+	s.Add(3)
 	go s.doAccept()
+	s.Wait()
 }
 
 // DoAccept accept new client connected to server
 func (s *Server) doAccept() {
-	var err error
-	var streamer net.Conn
 	for s.mIsRunning {
+		var err error
+		var streamer net.Conn
+
 		streamer, err = s.mListenner.Accept()
 		if err != nil {
 			utils.GetLog().Error("Server can't accept new client")
@@ -66,9 +68,12 @@ func (s *Server) doAccept() {
 			mClientCon: streamer,
 			mServer:    s,
 		}
-		client.Add(2)
+		// client.Add(2)
 		go client.Listen()
 		go client.ProcessMessage()
-		client.Wait()
+		// client.Wait()
+		// utils.GetLog().Info("server waitting for new client connected...")
+		// time.Sleep(3 * time.Second)
 	}
+	s.Done()
 }

@@ -2,6 +2,7 @@ package iso8583
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"golang/utils"
 	"strconv"
@@ -97,7 +98,7 @@ func MessageLengthToInt(typ MessageLengthType, length []byte) (int, error) {
 	var msglen int64
 
 	if len(length) > 2 {
-		fmt.Errorf("bytes too long")
+		err = errors.New("bytes too long")
 	}
 	switch typ {
 	case LengthHex:
@@ -106,5 +107,10 @@ func MessageLengthToInt(typ MessageLengthType, length []byte) (int, error) {
 		msglen, err = strconv.ParseInt(hex.EncodeToString(length[:2]), 16, 64)
 	}
 	return int(msglen), err
+}
 
+// HexToInt convert byte hex to int
+func HexToInt(value []byte) (int, error) {
+	v, err := strconv.ParseInt(hex.EncodeToString(value[:2]), 16, 64)
+	return int(v), err
 }

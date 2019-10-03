@@ -1,18 +1,16 @@
 package main
 
 import (
+	"golang/queue"
 	"golang/server"
 	"golang/utils"
-	"golang/queue"
 )
 
 func main() {
 	queue.InitQueue()
-	utils.InitEnv()
+	utils.InitManager()
 	s := server.NewServer()
-	s.Add(1)
 	s.Start()
-	s.Wait()
 
 	// iso := ISO8583.DefaultIso8583Data()
 	// iso.SetMTI(800)
@@ -28,7 +26,6 @@ func main() {
 	// iso.Parse()
 
 	// fmt.Println(msg[:length])
-	// // iso.ClearBit(2)
 	// fmt.Println(iso.CheckBit(2))
 	// fmt.Println(hex.DecodeString("080020380100028000001647610800078411109200000000011821380920003230303031313030313931"))
 	// fmt.Println(hex.EncodeToString(msg[:length]))

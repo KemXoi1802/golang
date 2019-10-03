@@ -33,7 +33,7 @@ type FieldAttr struct {
 	FieldDescription string
 }
 
-//Spec
+//Spec define spec for each bank is different
 var Spec = map[int]FieldAttr{
 	1:  FieldAttr{FieldType: BINARY, FieldLen: FIXED, FieldMaxLength: 8, FieldDescription: "BIT MAP"},
 	2:  FieldAttr{FieldType: BCD, FieldLen: LLVAR, FieldMaxLength: 19, FieldDescription: "PAN NUMBER"},
