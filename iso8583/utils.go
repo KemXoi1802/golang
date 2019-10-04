@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"golang/utils"
+	"golang/logging"
 	"strconv"
 	"strings"
 )
@@ -27,7 +27,7 @@ func ToMessageLengthType(typ string) MessageLengthType {
 	case "HEX":
 		result = LengthHex
 	default:
-		utils.GetLog().Info("other types are not implemented")
+		logging.GetLog().Info("other types are not implemented")
 	}
 	return result
 }

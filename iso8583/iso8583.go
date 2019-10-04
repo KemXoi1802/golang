@@ -3,7 +3,7 @@ package iso8583
 import (
 	"encoding/hex"
 	"fmt"
-	"golang/utils"
+	"golang/logging"
 	"strconv"
 )
 
@@ -49,10 +49,10 @@ func NewIso8583Data(data []byte, size int) *ISO8583Data {
 	var mti int
 	var err error
 	if mti, err = strconv.Atoi(hex.EncodeToString(data[5:7])); err != nil {
-		utils.GetLog().Info("MTI is not type int")
+		logging.GetLog().Info("MTI is not type int")
 	}
 	// if len(data) != size {
-	// 	utils.GetLog().Info("DATA or LENGTH invalid")
+	// 	logging.GetLog().Info("DATA or LENGTH invalid")
 	// }
 	return &ISO8583Data{
 		//tpdu, mti, bitmap.
@@ -97,7 +97,7 @@ func (i *ISO8583Data) PackField(FieldID int, FieldData string) {
 			}
 		}
 	default:
-		utils.GetLog().Infof("other types are not implemented %v", FieldAttr.FieldType)
+		logging.GetLog().Infof("other types are not implemented %v", FieldAttr.FieldType)
 	}
 	i.mFieldEnabled = append(i.mFieldEnabled, FieldID)
 	i.SetBit(FieldID)
@@ -202,7 +202,7 @@ func (i *ISO8583Data) Unpack() {
 			case LLLVAR:
 				length, _ = HexToInt(i.mBuffer[count : count+2])
 			default:
-				utils.GetLog().Info("other types are not implemented")
+				logging.GetLog().Info("other types are not implemented")
 			}
 			switch FieldAttr.FieldType {
 			case AN, ANS:
@@ -226,7 +226,7 @@ func (i *ISO8583Data) Unpack() {
 				}
 				current = count
 			default:
-				utils.GetLog().Info("other types are not implemented")
+				logging.GetLog().Info("other types are not implemented")
 			}
 		}
 	}
@@ -236,11 +236,11 @@ func (i *ISO8583Data) Unpack() {
 // Parse print data for each field
 func (i *ISO8583Data) Parse() {
 	var FieldID string
-	utils.GetLog().Info("=============== Full Message ===============")
-	utils.GetLog().Info("TPDU = ", hex.EncodeToString(i.mTPDU))
-	utils.GetLog().Info("Bit Map = ", hex.EncodeToString(i.mBitMap))
-	utils.GetLog().Info("Data = ", hex.EncodeToString(i.mBuffer))
-	utils.GetLog().Info("Message Type = ", i.mMTI)
+	logging.GetLog().Info("=============== Full Message ===============")
+	logging.GetLog().Info("TPDU = ", hex.EncodeToString(i.mTPDU))
+	logging.GetLog().Info("Bit Map = ", hex.EncodeToString(i.mBitMap))
+	logging.GetLog().Info("Data = ", hex.EncodeToString(i.mBuffer))
+	logging.GetLog().Info("Message Type = ", i.mMTI)
 	for _, field := range i.mFieldEnabled {
 		for k, v := range i.mFieldsAttrs {
 			if field == k {
@@ -251,9 +251,9 @@ func (i *ISO8583Data) Parse() {
 				} else if field < 999 {
 					FieldID = fmt.Sprintf("%d", field)
 				}
-				utils.GetLog().Infoln("Field", FieldID, " = ", hex.EncodeToString(v.mData), " - ", Spec[field].FieldDescription)
+				logging.GetLog().Infoln("Field", FieldID, " = ", hex.EncodeToString(v.mData), " - ", Spec[field].FieldDescription)
 			}
 		}
 	}
-	utils.GetLog().Info("=============== End Full Message ===============")
+	logging.GetLog().Info("=============== End Full Message ===============")
 }

@@ -1,4 +1,4 @@
-package utils
+package logging
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 var logger = logrus.New()
 
 // InitLog init log instant
-func InitLog() {
+func Init(logFileName string, level string) {
 	logger.Out = os.Stdout
 	logger.SetFormatter(&logrus.TextFormatter{
 		DisableColors:          false,
@@ -18,7 +18,18 @@ func InitLog() {
 		ForceColors:            true,
 		DisableLevelTruncation: true,
 	})
-	// logger.SetReportCaller(true)
+
+	
+	// f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
+	// if err == nil {
+	// 	logger.Out = f
+	// }
+
+	// if l, err := logrus.ParseLevel(level); err != nil {
+	// 	logrus.Fatal("Unknown loglevel ", l)
+	// } else {
+	// 	logrus.SetLevel(l)
+	// }
 }
 
 // GetLog get log instant

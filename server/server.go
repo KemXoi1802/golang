@@ -3,7 +3,7 @@ package server
 import (
 	"container/list"
 	"golang/iso8583"
-	"golang/utils"
+	"golang/logging"
 	"net"
 	"os"
 	"sync"
@@ -40,10 +40,10 @@ func (s *Server) Start() {
 	var err error
 	CStr := s.mIPAddr + ":" + s.mPort
 
-	utils.GetLog().Info("Local Address: ", s.mIPAddr, " Port: ", s.mPort)
+	logging.GetLog().Info("Local Address: ", s.mIPAddr, " Port: ", s.mPort)
 	s.mListenner, err = net.Listen(s.mServerType, CStr)
 	if err != nil {
-		utils.GetLog().Error("IPAddr or Port is not valid")
+		logging.GetLog().Error("IPAddr or Port is not valid")
 		panic(err)
 	}
 	s.mIsRunning = true
@@ -60,10 +60,10 @@ func (s *Server) doAccept() {
 
 		streamer, err = s.mListenner.Accept()
 		if err != nil {
-			utils.GetLog().Error("Server can't accept new client")
+			logging.GetLog().Error("Server can't accept new client")
 			panic(err)
 		}
-		utils.GetLog().Info("A remote client connected from IP: ", streamer.RemoteAddr())
+		logging.GetLog().Info("A remote client connected from IP: ", streamer.RemoteAddr())
 		client := &ISO8583Client{
 			mClientCon: streamer,
 			mServer:    s,
@@ -72,7 +72,7 @@ func (s *Server) doAccept() {
 		go client.Listen()
 		go client.ProcessMessage()
 		// client.Wait()
-		// utils.GetLog().Info("server waitting for new client connected...")
+		// logging.GetLog().Info("server waitting for new client connected...")
 		// time.Sleep(3 * time.Second)
 	}
 	s.Done()

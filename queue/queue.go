@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"errors"
 	"golang/iso8583"
-	"golang/utils"
+	"golang/logging"
 	"net"
 	"sync"
 	"time"
@@ -55,7 +55,7 @@ func InitQueue() {
 	iso8583Queue = &Iso8583Queue{
 		MsgList: list.New(),
 	}
-	utils.GetLog().Info("Init queue with queue len is: ", iso8583Queue.MsgList.Len())
+	logging.GetLog().Info("Init queue with queue len is: ", iso8583Queue.MsgList.Len())
 }
 
 // GetQueue get queue

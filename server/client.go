@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"golang/iso8583"
 	"golang/queue"
-	"golang/utils"
+	"golang/logging"
 	"net"
 	"sync"
 	"time"
@@ -33,7 +33,7 @@ func (client *ISO8583Client) Listen() {
 			if length, err := iso8583.MessageLengthToInt(client.mServer.mLengthType, bytesLen); err == nil {
 				iso8583data, err = ReadByte(r, length)
 				if len(iso8583data) != length {
-					utils.GetLog().Info("invalid length")
+					logging.GetLog().Info("invalid length")
 					continue
 				}
 				msg := iso8583.NewIso8583Data(iso8583data, length)
@@ -62,7 +62,7 @@ func (client *ISO8583Client) ProcessMessage() {
 			message, _ := queue.Get()
 			message.RequestData.Unpack()
 		}
-		// utils.GetLog().Info("alway waiting message incomming to process")
+		// logging.GetLog().Info("alway waiting message incomming to process")
 		time.Sleep(1 * time.Second)
 	}
 	client.Done()

@@ -3,12 +3,67 @@ package main
 import (
 	"golang/queue"
 	"golang/server"
-	"golang/utils"
+	"golang/logging"
+	"golang/config"
+	"os"
+	"io/ioutil"
+	"encoding/xml"
 )
 
+// <?xml version="1.0" encoding="UTF-8"?>
+// <Transactions>
+//     <Transaction type="810">
+//         <Field id="2" value="logon"/>
+//     </Transaction>
+
+//     <Transaction type="210">
+//         <Field id="3" value="sale"/>
+//     </Transaction>
+
+//     <Transaction type="510">
+//         <Field id="4" value="tong ket"/>
+//     </Transaction>
+// </Transactions>
+
+type Transactions struct {
+	XMLName xml.Name `xml:"Transactions"`
+	Transactions []Transaction `xml:"Transaction"`
+}
+
+type Transaction struct {
+	XMLName xml.Name `xml:"Transaction"`
+	Fields []Field `xml:"Field"`
+}
+
+type Field struct {
+	XMLName xml.Name `xml:"Field"`
+	Typ string `xml:"type,attr"`
+	ID string `xml:"id,attr"`
+	Value string `xml:"value,attr"`
+}
 func main() {
+	logging.Init("log.txt", "debug")
+	xmlFile, _ := os.Open("response.xml")
+	defer xmlFile.Close()
+	v, _ := ioutil.ReadAll(xmlFile)
+
+	var txn Transactions
+	xml.Unmarshal(v, &txn)
+
+	// logging.GetLog().Info(txn.Transactions[0].Fields[0].ID)
+	// logging.GetLog().Info(txn.Transactions[0].Fields[0].Value)
+
+	// logging.GetLog().Info(txn.Transactions[0].Fields[1])
+	// logging.GetLog().Info(txn.Transactions[0].Fields[1])
+
+	for i:=0; i< len(txn);i++ {
+		if txn.Transactions[i].Fields[] == "810" {
+			logging.GetLog().Info(txn.Transactions[i])
+		}
+	}
+	
 	queue.InitQueue()
-	utils.InitManager()
+	config.Init()
 	s := server.NewServer()
 	s.Start()
 
