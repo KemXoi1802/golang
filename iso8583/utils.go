@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang/logging"
+	"math/rand"
 	"strconv"
 	"strings"
 )
@@ -113,4 +114,8 @@ func MessageLengthToInt(typ MessageLengthType, length []byte) (int, error) {
 func HexToInt(value []byte) (int, error) {
 	v, err := strconv.ParseInt(hex.EncodeToString(value[:2]), 16, 64)
 	return int(v), err
+}
+
+func random(min, max int) int {
+	return rand.Intn(max-min) + min
 }
