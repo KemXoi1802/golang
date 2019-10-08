@@ -8,7 +8,7 @@ import (
 
 var logger = logrus.New()
 
-// InitLog init log instant
+// Init init log instant
 func Init(logFileName string, level string) {
 	logger.Out = os.Stdout
 	logger.SetFormatter(&logrus.TextFormatter{
@@ -19,17 +19,16 @@ func Init(logFileName string, level string) {
 		DisableLevelTruncation: true,
 	})
 
-	
-	// f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
-	// if err == nil {
-	// 	logger.Out = f
-	// }
+	// logger.SetReportCaller(true)
 
-	// if l, err := logrus.ParseLevel(level); err != nil {
-	// 	logrus.Fatal("Unknown loglevel ", l)
-	// } else {
-	// 	logrus.SetLevel(l)
-	// }
+	// f, err := os.OpenFile(logFileName, os.O_CREATE, 0755)
+	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
+	if err == nil {
+		logger.SetOutput(f)
+	}
+
+	logger.SetLevel(logrus.DebugLevel)
+
 }
 
 // GetLog get log instant

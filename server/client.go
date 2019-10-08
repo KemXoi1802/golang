@@ -3,9 +3,10 @@ package server
 import (
 	"bufio"
 	"golang/iso8583"
-	"golang/queue"
 	"golang/logging"
+	"golang/queue"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -37,8 +38,13 @@ func (client *ISO8583Client) Listen() {
 					continue
 				}
 				msg := iso8583.NewIso8583Data(iso8583data, length)
-				ele := queue.NewElement(client.mClientCon, msg, queue.Pending)
-				queue.Put(ele)
+				if msg != nil {
+					ele := queue.NewElement(client.mClientCon, msg, queue.Pending)
+					queue.Put(ele)
+				} else {
+					logging.GetLog().Debug("MSG IS NILL")
+				}
+
 			}
 		}
 	}
@@ -59,11 +65,27 @@ func ReadByte(r *bufio.Reader, bytesRead int) ([]byte, error) {
 func (client *ISO8583Client) ProcessMessage() {
 	for true {
 		if queue.IsEmpty() == false {
-			message, _ := queue.Get()
-			message.RequestData.Unpack()
+			if message, err := queue.Get(); err == nil {
+				if message.RequestData.IsRequest() {
+					if runtime.NumGoroutine() > 50 {
+						time.Sleep(30 * time.Second)
+						queue.Put(message)
+					}
+					go func(msg interface{}) {
+						message.RequestData.Unpack()
+						message.ResponseData = message.RequestData.Clone()
+						message.ResponseData.SetResponseMTI()
+						message.ResponseData.SwapNII()
+						message.ResponseData.PackField(39, "00")
+						message.ResponseData.PackField(62, "12345678901213141512133456870923")
+						message.ResponseData.Pack()
+						data, _ := message.ResponseData.BuildMsg()
+						message.ClientConn.Write(data)
+					}(message)
+				}
+			}
 		}
-		// logging.GetLog().Info("alway waiting message incomming to process")
-		time.Sleep(1 * time.Second)
+		time.Sleep(1 / 1000 * time.Second)
 	}
 	client.Done()
 }

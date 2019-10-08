@@ -14,8 +14,11 @@ import (
 type messageStatus int
 
 const (
+	//Pending new message
 	Pending messageStatus = iota
+	//InProgress inprogess message
 	InProgress
+	//Completed done message
 	Completed
 )
 
@@ -24,14 +27,12 @@ type Message struct {
 	ClientConn   net.Conn
 	RequestTime  time.Time
 	ResponseTime time.Time
-	RequestData  *iso8583.ISO8583Data
-	ResponseData *iso8583.ISO8583Data
+	RequestData  *iso8583.Message
+	ResponseData *iso8583.Message
 	Status       messageStatus
 }
 
-// var iso8583Queue *list.List
-
-//Iso8583Queue
+//Iso8583Queue store list of message recv from client
 type Iso8583Queue struct {
 	sync.Mutex
 	MsgList *list.List
@@ -40,7 +41,7 @@ type Iso8583Queue struct {
 var iso8583Queue *Iso8583Queue
 
 //NewElement return new message
-func NewElement(client net.Conn, requestData *iso8583.ISO8583Data, status messageStatus) Message {
+func NewElement(client net.Conn, requestData *iso8583.Message, status messageStatus) Message {
 	return Message{
 		ClientConn:   client,
 		RequestTime:  time.Now(),

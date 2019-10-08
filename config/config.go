@@ -3,6 +3,7 @@ package config
 import (
 	// "os"
 	"golang/logging"
+
 	"github.com/joho/godotenv"
 )
 
@@ -14,7 +15,3 @@ func Init() {
 		panic(err)
 	}
 }
-
-// func XMLFile() {
-// 	xml, err := os.Open("response.xml")
-// }

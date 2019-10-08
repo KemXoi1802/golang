@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //MessageLengthType alias type int for message type
@@ -45,7 +46,7 @@ func StringToAsc(str string) ([]byte, error) {
 	return hex.DecodeString(ToHexString(str))
 }
 
-//PadAmount
+//PadAmount padding amount with pad string
 func PadAmount(str string, length int, pad string) string {
 	if strings.Contains(str, ".") {
 		str = strings.Replace(string(str), ".", "", -2)
@@ -116,6 +117,39 @@ func HexToInt(value []byte) (int, error) {
 	return int(v), err
 }
 
-func random(min, max int) int {
-	return rand.Intn(max-min) + min
+const (
+	numericCharset      = "0123456789"
+	alphaNumericCharset = "abcdefghijklmnopqrstuvwxyz0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
+
+var seededRand *rand.Rand = rand.New(
+	rand.NewSource(time.Now().UnixNano()))
+
+//StringWithCharset return string with optional charset
+func StringWithCharset(length int, charset string) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
+//NumericString return string with numberic charset
+func NumericString(length int) string {
+	return StringWithCharset(length, numericCharset)
+}
+
+//AlphaNumericString return string with alpha numeric charset
+func AlphaNumericString(length int) string {
+	return StringWithCharset(length, alphaNumericCharset)
+}
+
+// Contains tells whether a contains x.
+func Contains(a []int, x int) bool {
+	for _, n := range a {
+		if x == n {
+			return true
+		}
+	}
+	return false
 }

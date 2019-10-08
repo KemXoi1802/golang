@@ -2,10 +2,14 @@ package iso8583
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"golang/logging"
+	"sort"
 	"strconv"
 )
+
+var bitCheck = [8]byte{0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01}
 
 //bitAttribute
 type bitAttribute struct {
@@ -17,8 +21,8 @@ type bitAttribute struct {
 	mIsSet           bool
 }
 
-//ISO8583Data
-type ISO8583Data struct {
+//Message store data of iso
+type Message struct {
 	mTPDU         []byte
 	mMTI          int
 	mBitMap       []byte
@@ -35,8 +39,8 @@ const (
 )
 
 //DefaultIso8583Data init
-func DefaultIso8583Data() *ISO8583Data {
-	return &ISO8583Data{
+func DefaultIso8583Data() *Message {
+	return &Message{
 		mTPDU:        make([]byte, maxTpduSize),
 		mBitMap:      make([]byte, maxBitmapSize),
 		mFieldsAttrs: make(map[int]bitAttribute),
@@ -45,7 +49,7 @@ func DefaultIso8583Data() *ISO8583Data {
 }
 
 //NewIso8583Data init
-func NewIso8583Data(data []byte, size int) *ISO8583Data {
+func NewIso8583Data(data []byte, size int) *Message {
 	var mti int
 	var err error
 	if mti, err = strconv.Atoi(hex.EncodeToString(data[5:7])); err != nil {
@@ -54,23 +58,24 @@ func NewIso8583Data(data []byte, size int) *ISO8583Data {
 	// if len(data) != size {
 	// 	logging.GetLog().Info("DATA or LENGTH invalid")
 	// }
-	return &ISO8583Data{
+	return &Message{
 		//tpdu, mti, bitmap.
-		mTPDU:        data[:5],
-		mMTI:         mti,
-		mBitMap:      data[7:15],
-		mBuffer:      data[15:],
+		mTPDU:   data[:5],
+		mMTI:    mti,
+		mBitMap: data[7:15],
+		//start from MTI
+		mBuffer:      data[5:size],
 		mFieldsAttrs: make(map[int]bitAttribute),
 		mPackageSize: size,
 	}
 }
 
 //PackField pack data into field
-func (i *ISO8583Data) PackField(FieldID int, FieldData string) {
+func (i *Message) PackField(FieldID int, FieldData string) {
 	FieldAttr := Spec[FieldID]
 
 	switch FieldAttr.FieldType {
-	case AN, ANS:
+	case An, Ans:
 		if data, ok := StringToAsc(FieldData); ok == nil {
 			i.mFieldsAttrs[FieldID] = bitAttribute{
 				mBitType:         FieldAttr.FieldType,
@@ -80,9 +85,9 @@ func (i *ISO8583Data) PackField(FieldID int, FieldData string) {
 				mIsSet:           true,
 			}
 		}
-	case BCD:
+	case Bcd:
 		var length int
-		if FieldAttr.FieldLen == FIXED {
+		if FieldAttr.FieldLen == Fixed {
 			length = FieldAttr.FieldMaxLength
 		} else {
 			length = len(FieldData)
@@ -104,7 +109,7 @@ func (i *ISO8583Data) PackField(FieldID int, FieldData string) {
 }
 
 //CheckBit check bit enable or not
-func (i *ISO8583Data) CheckBit(FieldID int) bool {
+func (i *Message) CheckBit(FieldID int) bool {
 	var IsEnabled bool
 	BitCheck := [8]byte{0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01}
 	if i.mBitMap[(FieldID-1)/8]&BitCheck[(FieldID-1)%8] != 0 {
@@ -117,95 +122,105 @@ func (i *ISO8583Data) CheckBit(FieldID int) bool {
 }
 
 //SetBit enabled bit
-func (i *ISO8583Data) SetBit(FieldID int) {
+func (i *Message) SetBit(FieldID int) {
 	BitCheck := [8]byte{0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01}
 	i.mBitMap[(FieldID-1)/8] |= BitCheck[(FieldID-1)%8]
 }
 
 //ClearBit disabled bit
-func (i *ISO8583Data) ClearBit(FieldID int) {
+func (i *Message) ClearBit(FieldID int) {
 	BitCheck := [8]byte{0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01}
 	if IsEnabled := i.CheckBit(FieldID); IsEnabled {
 		i.mBitMap[(FieldID-1)/8] ^= BitCheck[(FieldID-1)%8]
 	}
 }
 
-//SetMTI
-func (i *ISO8583Data) SetMTI(MTI int) {
+//SetMTI set value MTI
+func (i *Message) SetMTI(MTI int) {
 	i.mMTI = MTI
 }
 
-//Pack
-func (i *ISO8583Data) Pack() ([]byte, int, error) {
+//Pack make new a iso 8583 message format MTI+BITMAP+FIELD DATA
+func (i *Message) Pack() ([]byte, int, error) {
 	var err error
+	var buffer = make([]byte, maxBufferSize)
 
+	err = nil
 	if MTI, ok := hex.DecodeString(BinToString(i.mMTI, 2)); ok == nil {
-		copy(i.mBuffer, MTI)
+		copy(buffer, MTI)
 		i.mPackageSize += 2
-		fmt.Errorf("value type is %T; want int", i.mMTI)
+	} else {
+		err = errors.New("MTI invalid type")
 	}
 
 	if i.mBitMap != nil {
-		copy(i.mBuffer[i.mPackageSize:], i.mBitMap)
+		copy(buffer[i.mPackageSize:], i.mBitMap)
 		i.mPackageSize += 8
-		fmt.Errorf("value type is %T; want byte array", i.mBitMap)
+	} else {
+		err = errors.New("bitmap is nil")
 	}
 
+	sort.Ints(i.mFieldEnabled[:])
 	//map in golang
 	for _, field := range i.mFieldEnabled {
 		for k, v := range i.mFieldsAttrs {
 			if field == k {
 				switch v.mLengthAttribute {
-				case FIXED:
-					copy(i.mBuffer[i.mPackageSize:], v.mData)
+				case Fixed:
+					copy(buffer[i.mPackageSize:], v.mData)
 					i.mPackageSize += len(v.mData)
-				case LLVAR:
+				case Llvar:
 					if llvar, ok := hex.DecodeString(BinToString(v.mLen, 1)); ok == nil {
-						copy(i.mBuffer[i.mPackageSize:], llvar)
+						copy(buffer[i.mPackageSize:], llvar)
 						i.mPackageSize++
 					}
-					copy(i.mBuffer[i.mPackageSize:], v.mData)
+					copy(buffer[i.mPackageSize:], v.mData)
 					i.mPackageSize += (v.mLen + 1) / 2
-				case LLLVAR:
+				case Lllvar:
 					if lllvar, ok := hex.DecodeString(BinToString(v.mLen, 2)); ok == nil {
-						copy(i.mBuffer[i.mPackageSize:], lllvar)
+						copy(buffer[i.mPackageSize:], lllvar)
 						i.mPackageSize += 2
 					}
-					copy(i.mBuffer[i.mPackageSize:], v.mData)
+					copy(buffer[i.mPackageSize:], v.mData)
 					i.mPackageSize += (v.mLen + 1) / 2
 				default:
-					fmt.Errorf("length type is not support")
+					err = errors.New("length types are not implemented")
 				}
 			}
 		}
 	}
-
+	i.mBuffer = make([]byte, i.mPackageSize)
+	copy(i.mBuffer, buffer[:i.mPackageSize])
 	return i.mBuffer, i.mPackageSize, err
 }
 
 //Unpack unpack iso8583 receive from client
-func (i *ISO8583Data) Unpack() {
-	count := 0
-	current := 0
+func (i *Message) Unpack() {
+
+	//skip 10 byte (start from field data)
+	count := 10
+	current := 10
 	for field := 1; field <= maxBitmapSize*maxBitmapSize; field++ {
 		if i.CheckBit(field) {
-			i.mFieldEnabled = append(i.mFieldEnabled, field)
+			if !Contains(i.mFieldEnabled, field) {
+				i.mFieldEnabled = append(i.mFieldEnabled, field)
+			}
 			FieldAttr := Spec[field]
 
 			var length int
 
 			switch FieldAttr.FieldLen {
-			case FIXED:
+			case Fixed:
 				length = FieldAttr.FieldMaxLength
-			case LLVAR:
+			case Llvar:
 				length, _ = HexToInt(i.mBuffer[count : count+1])
-			case LLLVAR:
+			case Lllvar:
 				length, _ = HexToInt(i.mBuffer[count : count+2])
 			default:
 				logging.GetLog().Info("other types are not implemented")
 			}
 			switch FieldAttr.FieldType {
-			case AN, ANS:
+			case An, Ans:
 				count += length
 				i.mFieldsAttrs[field] = bitAttribute{
 					mBitType:         FieldAttr.FieldType,
@@ -215,7 +230,7 @@ func (i *ISO8583Data) Unpack() {
 					mIsSet:           true,
 				}
 				current = count
-			case BCD:
+			case Bcd:
 				count += (length + 1) / 2
 				i.mFieldsAttrs[field] = bitAttribute{
 					mBitType:         FieldAttr.FieldType,
@@ -234,12 +249,15 @@ func (i *ISO8583Data) Unpack() {
 }
 
 // Parse print data for each field
-func (i *ISO8583Data) Parse() {
+func (i *Message) Parse() {
 	var FieldID string
-	logging.GetLog().Info("=============== Full Message ===============")
+	if i.IsRequest() {
+		logging.GetLog().Info("=============== Request Message ===============")
+	} else {
+		logging.GetLog().Info("=============== Response Message ===============")
+	}
 	logging.GetLog().Info("TPDU = ", hex.EncodeToString(i.mTPDU))
-	logging.GetLog().Info("Bit Map = ", hex.EncodeToString(i.mBitMap))
-	logging.GetLog().Info("Data = ", hex.EncodeToString(i.mBuffer))
+	logging.GetLog().Debug("Data = ", hex.EncodeToString(i.mBuffer))
 	logging.GetLog().Info("Message Type = ", i.mMTI)
 	for _, field := range i.mFieldEnabled {
 		for k, v := range i.mFieldsAttrs {
@@ -255,5 +273,80 @@ func (i *ISO8583Data) Parse() {
 			}
 		}
 	}
-	logging.GetLog().Info("=============== End Full Message ===============")
+	logging.GetLog().Info("========================= End Parse Message =========================")
+}
+
+//IsRequest check msg is request or not
+func (i *Message) IsRequest() bool {
+	ret := ((i.mMTI / 10) % 2) == 0
+	return ret
+}
+
+//SetResponseMTI set MTI from request MTI to response MTI
+func (i *Message) SetResponseMTI() error {
+	var err error
+	err = nil
+	if !i.IsRequest() {
+		err = errors.New("This message are not a request")
+		return err
+	}
+
+	if i.mMTI%2 == 1 {
+		i.mMTI--
+	}
+
+	i.mMTI += 10
+	return err
+}
+
+// IsLogon check the message is logon or not
+func (i *Message) IsLogon() bool {
+	return (((i.mMTI % 1000) / 800) == 1) && (((i.mMTI % 1000) % 800) < 100)
+}
+
+//IsReversalOrChargeBack  the check message is reversal or not
+func (i *Message) IsReversalOrChargeBack() bool {
+	return (((i.mMTI % 1000) / 400) == 1) && (((i.mMTI % 1000) % 400) < 100)
+}
+
+//IsFinAncial check the message is finalcial or not
+func (i *Message) IsFinAncial() bool {
+	return (((i.mMTI % 1000) / 200) == 1) && (((i.mMTI % 1000) % 200) < 100)
+}
+
+//IsAuthorization check the message is authorization or not
+func (i *Message) IsAuthorization() bool {
+	return (((i.mMTI % 1000) / 100) == 1) && (((i.mMTI % 1000) % 100) < 100)
+}
+
+//SwapNII swap dst nii And src nii
+func (i *Message) SwapNII() {
+	i.mTPDU[1], i.mTPDU[3] = i.mTPDU[3], i.mTPDU[1]
+	i.mTPDU[2], i.mTPDU[4] = i.mTPDU[4], i.mTPDU[2]
+}
+
+//Clone make a new iso8583 data from exists iso8583 data
+func (i *Message) Clone() *Message {
+	m := &Message{
+		mTPDU:         i.mTPDU,
+		mMTI:          i.mMTI,
+		mBitMap:       i.mBitMap,
+		mBuffer:       i.mBuffer,
+		mFieldEnabled: i.mFieldEnabled,
+		mFieldsAttrs:  i.mFieldsAttrs,
+	}
+	return m
+}
+
+//BuildMsg build completed iso8583 msg 2 byte length + tpdu + bitmap + mti + field data
+func (i *Message) BuildMsg() ([]byte, error) {
+	var err error
+	var msg = make([]byte, maxBufferSize)
+	length, _ := hex.DecodeString(BinToString(len(i.mTPDU)+len(i.mBuffer), 2))
+
+	copied := copy(msg, length)
+	copied += copy(msg[copied:], i.mTPDU)
+	copied += copy(msg[copied:], i.mBuffer)
+	// length, _ := hex.DecodeString(BinToString(copied, 2))
+	return msg[:copied], err
 }
